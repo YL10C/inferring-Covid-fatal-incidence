@@ -79,9 +79,6 @@ deconv <- function(t, deaths, n.rep = 100, bs = FALSE, t0 = NULL) {
     # t0 has a very small probability of being negative, deal with it later!
   }
 
-  # Sample a new duration for each individual and calculate the simulated time of death
-  durations <- sample(1:max_duration, size = n, replace = TRUE, prob = infection_to_death_probs)
-
   # Initializes a vector of length n.rep
   P_history <- numeric(n.rep)
   # Initialize the matrix of max_day * n.rep
@@ -89,6 +86,10 @@ deconv <- function(t, deaths, n.rep = 100, bs = FALSE, t0 = NULL) {
 
   # main loop: n.rep times
   for (rep in 1:n.rep) {
+    # Sample a new duration for each individual and calculate the simulated time of death
+    # put this in the loop can decrease P value further
+    durations <- sample(1:max_duration, size = n, replace = TRUE, prob = infection_to_death_probs)
+
     simulated_death_times <- t0 + durations
 
     # Calculate the simulated daily death toll
