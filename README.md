@@ -143,7 +143,7 @@
 ### 按照指定的函数签名和要求，编写核心函数
 
 - deconv <- function(t, deaths, n.rep=100, bs=FALSE, t0=NULL) {
-  # 函数主体
+  函数主体
 }
 
 	- t：实际的死亡日期向量，长度为150
