@@ -48,12 +48,28 @@ generate_initial_infection_times <- function(deaths, julian_days, infection_to_d
 # max_day <- 310
 
 # Fitness function: Calculates the modified Pearson statistic
+# Assume the maximum possible date is 310 days
+max_day <- 310
+
+# Fitness function: Calculates the modified Pearson statistic
 calculate_P <- function(actual_deaths, simulated_deaths, max_day) {
   # Extend the deaths vector to length max_day, filling it with zeros
-  actual_deaths <- c(actual_deaths, rep(0, max_day - length(actual_deaths)))
+  # actual_deaths <- c(actual_deaths, rep(0, max_day - length(actual_deaths)))
   P <- sum((actual_deaths - simulated_deaths)^2 / pmax(1, simulated_deaths))
   return(P)
 }
+
+# Data start and end dates
+start_day <- min(julian_days)
+end_day <- max(julian_days)
+
+
+# Extended deaths vector
+deaths_extended <- c(
+  rep(0, start_day - 1),
+  deaths,
+  rep(0, max_day - end_day)
+)
 
 
 # Define optimization function
@@ -73,7 +89,7 @@ optimize_t0 <- function(t0, deaths, durations, n.rep, max_day, infection_to_deat
     simulated_deaths <- tabulate(simulated_death_times, nbins = max_day)
     
     # Calculate the fitness P
-    P <- calculate_P(actual_deaths = deaths, simulated_deaths = simulated_deaths, max_day)
+    P <- calculate_P(actual_deaths = deaths_extended, simulated_deaths = simulated_deaths, max_day)
     
     # Store the P-value and the number of new infections per day
     P_history[rep] <- P
@@ -107,7 +123,7 @@ optimize_t0 <- function(t0, deaths, durations, n.rep, max_day, infection_to_deat
       if (proposed_death_time < 1 || proposed_death_time > max_day) next
       
       # Get the actual death toll
-      deaths_extended <- c(deaths, rep(0, max_day - length(deaths)))
+      # deaths_extended <- c(deaths, rep(0, max_day - length(deaths)))
       di_current <- deaths_extended[current_death_time]
       di_proposed <- deaths_extended[proposed_death_time]
       
@@ -188,7 +204,6 @@ deconv <- function(t, deaths, n.rep = 100, bs = FALSE, t0 = NULL) {
     max_duration = max_duration
   )
   
-  return(result)
   
   if(bs){
     bootstrap_deaths <- rpois(length(deaths), lambda = deaths)
@@ -204,7 +219,7 @@ deconv <- function(t, deaths, n.rep = 100, bs = FALSE, t0 = NULL) {
     )
     return(result)
     
-   
+    
   } 
   
   
@@ -256,6 +271,7 @@ print(extended_Predict_death_number)
 
 results <- deconv(julian_days, deaths, n.rep = 100, bs = TRUE)
 
+print(results$P)
 
 
 average_infections <- rowMeans(results$inft)
