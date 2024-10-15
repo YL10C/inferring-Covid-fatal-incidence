@@ -10,6 +10,7 @@ data <- read.table("engcov.txt", header = TRUE)
 
 # Daily deaths and julian for the previous 150 days
 deaths <- data$nhs[1:150]
+extended_deaths <- c(rep(0, 60), deaths, rep(0, 100))
 julian_days <- data$julian[1:150]
 
 
@@ -189,13 +190,6 @@ deconv <- function(t, deaths, n.rep = 100, bs = FALSE, t0 = NULL) {
   
   return(result)
   
-  #final_t0 <- result$t0
-  #best_p <- result$P
-  
-  #t0_bootstrap_results <- matrix(nrow = max_day, ncol = n.bootstrap)  # 准备矩阵以存储自举结果
-  #inft矩阵主要用于记录每次迭代中所有日期的感染事件数量。每一列对应一次迭代，每一行对应一个特定日期，在该日期记录了该迭代中的感染事件数量。
-  #t0_matrix
-  #功能：假设t0_matrix是一个理论上的结构，它应该类似于inft，但更具体地存储每次迭代或自举得到的具体感染日期t0。在每次自举或迭代中，t0的每个值都是感染发生的具体日期。
   if(bs){
     bootstrap_deaths <- rpois(length(deaths), lambda = deaths)
     bootstrap_result <- optimize_t0(
@@ -210,24 +204,42 @@ deconv <- function(t, deaths, n.rep = 100, bs = FALSE, t0 = NULL) {
     )
     return(result)
     
-    #t0_bootstrap_results[, b] <- tabulate(bootstrap_result$t0, nbins = max_day)
-    #final_t0 <- bootstrap_result$t0
-    #best_p <- bootstrap_result$P
-    
+   
   } 
   
-  return(list(P = result$P, inft = result$inft, t0_results = t0_results))
   
+  return(list(P = result$P, inft = result$inft, t0 = result$t0))
 }
 
 
+results <- deconv(julian_days, deaths, n.rep = 100, bs = TRUE)
+
+print(results$P)
+
+results_no_bs <- deconv(julian_days, deaths, n.rep = 100, bs = FALSE)
+
+
+
+print(results$t0)
+n <- sum(deaths)
+meanlog <- 3.152
+sdlog <- 0.451
+max_duration <- 80
+
+infection_to_death_probs <- generate_infection_to_death_dist(meanlog, sdlog, max_duration)
+durations <- sample(1:max_duration, size = n, replace = TRUE, prob = infection_to_death_probs)
+Predict_death_data <- results$t0 + durations 
+print(Predict_death_data)
+Predict_death_number <- tabulate(Predict_death_data, nbins = 150)
+Predict_death_number
+
+extended_Predict_death_number <- c(rep(0, 60), Predict_death_number, rep(0, 100))
+
+print(extended_Predict_death_number)
 
 #ls = deconv(julian_days, deaths)
 
 #ls
-
-#ls <- deconv(julian_days, deaths, bs=TRUE)
-#ls 
 
 # meanlog <- 3.152
 # sdlog <- 0.451
@@ -242,48 +254,41 @@ deconv <- function(t, deaths, n.rep = 100, bs = FALSE, t0 = NULL) {
 # nolint end
 
 
-
-# 运行模型获取结果
 results <- deconv(julian_days, deaths, n.rep = 100, bs = TRUE)
 
-print(results$inft)
 
-#计算出每天的感染人数
-#infection_counts <- tabulate(results$t0, nbins = max(julian_days))  # 确保nbins覆盖了所有可能的日期
 
-#步骤1: 计算每天的感染人数
-#inft矩阵已经给出了每次迭代的感染事件数，所以可以计算出每天的平均感染人数和置信区间：
-# 每列inft代表一次迭代，计算每天的平均感染人数
 average_infections <- rowMeans(results$inft)
 # 计算置信区间
 ci_upper <- apply(results$inft, 1, quantile, probs = 0.975)
 ci_lower <- apply(results$inft, 1, quantile, probs = 0.025)
 
-#步骤2: 绘图数据
-#将所有数据放到一个数据框
+
 plot_data <- data.frame(
   Day = 1:length(average_infections),
   EstimatedInfections = average_infections,
   CI_upper = ci_upper,
   CI_lower = ci_lower,
-  ActualDeaths = deaths[1:length(average_infections)]
+  ExtendedDeaths <- extended_Predict_death_number,
+  ActualDeaths = extended_deaths[1:length(average_infections)]
 )
 
-#步骤3: 绘制图表
-#使用ggplot2创建图表：
 library(ggplot2)
 
 ggplot(plot_data, aes(x = Day)) +
   geom_ribbon(aes(ymin = CI_lower, ymax = CI_upper), fill = "blue", alpha = 0.2) +
   geom_line(aes(y = EstimatedInfections, color = "Estimated Infections")) +
   geom_line(aes(y = ActualDeaths, color = "Actual Deaths")) +
+  geom_line(aes(y = ExtendedDeaths, color = "Extended Predicted Deaths"), linetype = "solid") +
   geom_vline(xintercept = 84, linetype = "dashed", color = "red") +
-  scale_color_manual(values = c("Estimated Infections" = "blue", "Actual Deaths" = "red")) +
+  scale_color_manual(values = c("Estimated Infections" = "blue", "Actual Deaths" = "red", "Extended Predicted Deaths" = "black")) +
   labs(title = "Estimated Infection Trajectory vs Actual Deaths",
        subtitle = "Uncertainty and lockdown illustrated, UK lockdown on Day 84",
        x = "Day",
        y = "Number of Cases",
        color = "Legend") +
+  annotate("text", x = Inf, y = Inf, label = "Blue area represents confidence interval", hjust = 1.1, vjust = 1.1, color = "blue", size = 3.5) +
   theme_minimal()
 
-###蓝线--每天的估计感染人数，红线--每天的实际死亡数，蓝色区域-估计感染人数的置信区间，红色虚线--英国封锁开始
+
+
