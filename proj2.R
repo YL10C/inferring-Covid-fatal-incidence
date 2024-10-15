@@ -275,7 +275,8 @@ print(results$P)
 
 
 average_infections <- rowMeans(results$inft)
-# 计算置信区间
+#Calculated confidence interval
+
 ci_upper <- apply(results$inft, 1, quantile, probs = 0.975)
 ci_lower <- apply(results$inft, 1, quantile, probs = 0.025)
 
