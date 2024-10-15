@@ -3,8 +3,8 @@
 # nolint start
 
 # Set the working directory to the path of the local folder
-setwd("D:/OneDrive/文档/Yilin/Edinburgh/Statistical Programming/Assignment2")
-
+#setwd("D:/OneDrive/文档/Yilin/Edinburgh/Statistical Programming/Assignment2")
+setwd("D:/PG-CAM/Statistical Programming")
 # Read the data file, which contains the column names in the header
 data <- read.table("engcov.txt", header = TRUE)
 
@@ -28,18 +28,18 @@ generate_infection_to_death_dist <- function(meanlog, sdlog, max_duration) {
 # infection_to_death_probs: the duration distribution from infection to death
 generate_initial_infection_times <- function(deaths, julian_days, infection_to_death_probs) {
   n <- sum(deaths)
-
+  
   # Use the rep function to generate a death date vector of length n
   death_dates <- rep(julian_days, deaths)
-
+  
   # print(head(death_dates, 10))
-
+  
   # n days are sampled representing the number of days from infection to death
   infection_to_death_days <- sample(1:length(infection_to_death_probs), n, replace = TRUE, prob = infection_to_death_probs)
-
+  
   # Calculate the date of infection
   infection_dates <- death_dates - infection_to_death_days
-
+  
   return(infection_dates)
 }
 
@@ -67,7 +67,7 @@ optimize_t0 <- function(t0, deaths, durations, n.rep, max_day, infection_to_deat
     # Resample durations with each iteration
     # durations <- sample(1:max_duration, size = n, replace = TRUE, prob = infection_to_death_probs)
     # this can decrease P-value further
-
+    
     simulated_death_times <- t0 + durations
     simulated_deaths <- tabulate(simulated_death_times, nbins = max_day)
     
@@ -81,7 +81,7 @@ optimize_t0 <- function(t0, deaths, durations, n.rep, max_day, infection_to_deat
     # Randomly shuffle the index order
     indices <- sample(1:n, n)
     durations_index <- 0
-
+    
     for (i in indices) {
       # Adjust step size selection
       if (rep < n.rep / 2) {
@@ -96,7 +96,7 @@ optimize_t0 <- function(t0, deaths, durations, n.rep, max_day, infection_to_deat
       proposed_t0_i <- t0[i] + step
       
       durations_index <- durations_index + 1
-
+      
       # Calculate the current and proposed date of death
       current_death_time <- t0[i] + durations[durations_index]
       proposed_death_time <- proposed_t0_i + durations[durations_index]
@@ -151,7 +151,6 @@ optimize_t0 <- function(t0, deaths, durations, n.rep, max_day, infection_to_deat
   return(list(P = P_history, inft = inft, t0 = t0))
 }
 
-
 # t: actual date of death vector
 # deaths: the number of deaths per day
 # n.rep: indicates the total number of iterations
@@ -176,7 +175,6 @@ deconv <- function(t, deaths, n.rep = 100, bs = FALSE, t0 = NULL) {
   # initialize durations
   durations <- sample(1:max_duration, size = n, replace = TRUE, prob = infection_to_death_probs)
   
-  
   # Call optimization function
   result <- optimize_t0(
     t0 = t0,
@@ -190,12 +188,46 @@ deconv <- function(t, deaths, n.rep = 100, bs = FALSE, t0 = NULL) {
   )
   
   return(result)
+  
+  #final_t0 <- result$t0
+  #best_p <- result$P
+  
+  #t0_bootstrap_results <- matrix(nrow = max_day, ncol = n.bootstrap)  # 准备矩阵以存储自举结果
+  #inft矩阵主要用于记录每次迭代中所有日期的感染事件数量。每一列对应一次迭代，每一行对应一个特定日期，在该日期记录了该迭代中的感染事件数量。
+  #t0_matrix
+  #功能：假设t0_matrix是一个理论上的结构，它应该类似于inft，但更具体地存储每次迭代或自举得到的具体感染日期t0。在每次自举或迭代中，t0的每个值都是感染发生的具体日期。
+  if(bs){
+    bootstrap_deaths <- rpois(length(deaths), lambda = deaths)
+    bootstrap_result <- optimize_t0(
+      t0 = t0,
+      deaths = bootstrap_deaths,
+      durations = durations,
+      n.rep = n.rep,
+      # bs = bs,
+      max_day = 310,
+      infection_to_death_probs = infection_to_death_probs,
+      max_duration = max_duration
+    )
+    return(result)
+    
+    #t0_bootstrap_results[, b] <- tabulate(bootstrap_result$t0, nbins = max_day)
+    #final_t0 <- bootstrap_result$t0
+    #best_p <- bootstrap_result$P
+    
+  } 
+  
+  return(list(P = result$P, inft = result$inft, t0_results = t0_results))
+  
 }
 
 
-ls = deconv(julian_days, deaths)
 
-ls
+#ls = deconv(julian_days, deaths)
+
+#ls
+
+#ls <- deconv(julian_days, deaths, bs=TRUE)
+#ls 
 
 # meanlog <- 3.152
 # sdlog <- 0.451
@@ -208,3 +240,50 @@ ls
 
 # t0
 # nolint end
+
+
+
+# 运行模型获取结果
+results <- deconv(julian_days, deaths, n.rep = 100, bs = TRUE)
+
+print(results$inft)
+
+#计算出每天的感染人数
+#infection_counts <- tabulate(results$t0, nbins = max(julian_days))  # 确保nbins覆盖了所有可能的日期
+
+#步骤1: 计算每天的感染人数
+#inft矩阵已经给出了每次迭代的感染事件数，所以可以计算出每天的平均感染人数和置信区间：
+# 每列inft代表一次迭代，计算每天的平均感染人数
+average_infections <- rowMeans(results$inft)
+# 计算置信区间
+ci_upper <- apply(results$inft, 1, quantile, probs = 0.975)
+ci_lower <- apply(results$inft, 1, quantile, probs = 0.025)
+
+#步骤2: 绘图数据
+#将所有数据放到一个数据框
+plot_data <- data.frame(
+  Day = 1:length(average_infections),
+  EstimatedInfections = average_infections,
+  CI_upper = ci_upper,
+  CI_lower = ci_lower,
+  ActualDeaths = deaths[1:length(average_infections)]
+)
+
+#步骤3: 绘制图表
+#使用ggplot2创建图表：
+library(ggplot2)
+
+ggplot(plot_data, aes(x = Day)) +
+  geom_ribbon(aes(ymin = CI_lower, ymax = CI_upper), fill = "blue", alpha = 0.2) +
+  geom_line(aes(y = EstimatedInfections, color = "Estimated Infections")) +
+  geom_line(aes(y = ActualDeaths, color = "Actual Deaths")) +
+  geom_vline(xintercept = 84, linetype = "dashed", color = "red") +
+  scale_color_manual(values = c("Estimated Infections" = "blue", "Actual Deaths" = "red")) +
+  labs(title = "Estimated Infection Trajectory vs Actual Deaths",
+       subtitle = "Uncertainty and lockdown illustrated, UK lockdown on Day 84",
+       x = "Day",
+       y = "Number of Cases",
+       color = "Legend") +
+  theme_minimal()
+
+###蓝线--每天的估计感染人数，红线--每天的实际死亡数，蓝色区域-估计感染人数的置信区间，红色虚线--英国封锁开始
